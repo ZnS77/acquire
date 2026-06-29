@@ -32,9 +32,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build:pages
+      # One-time manual step: repo Settings → Pages → Build and deployment →
+      # Source: "GitHub Actions". After that this deploys on every push.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true # auto-enable Pages (Actions source); works now repo is public
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
