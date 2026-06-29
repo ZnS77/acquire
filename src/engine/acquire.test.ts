@@ -81,7 +81,12 @@ describe('buying shares', () => {
     // tower size 2 low tier = 200 each
     expect(s.players[0].cash).toBe(cashBefore - 400);
     expect(s.players[0].shares.tower).toBe(3); // 1 founder + 2 bought
-    // Turn advanced to next player placing.
+    // After buying, the player draws and pauses to confirm the new tile.
+    expect(s.phase).toBe('confirm');
+    expect(s.pendingDraw?.player).toBe('p1');
+    expect(s.currentPlayerIndex).toBe(0);
+    // Confirming ends the turn → next player places.
+    s = act(s, 'p1', { type: 'END_TURN' });
     expect(s.phase).toBe('placing');
     expect(s.currentPlayerIndex).toBe(1);
   });
@@ -211,10 +216,11 @@ describe('merger disposal: 2:1 trade', () => {
   });
 });
 
-describe('safe company rule', () => {
-  it('forbids a tile that would merge two safe companies', () => {
-    let s = setup(2);
-    // Two safe companies separated by one gap; the bridging tile is illegal.
+describe('safe company merge (house rule)', () => {
+  function twoSafeBoard() {
+    const s = setup(2);
+    // tower safe (size 11) on columns 1–2, luxor safe (size 11) on columns 4–5,
+    // a one-tile gap at 3A bridges them.
     for (let r = 0; r < 9; r++) place(s, `1${'ABCDEFGHI'[r]}`, 'tower');
     place(s, '2A', 'tower');
     place(s, '2B', 'tower');
@@ -228,10 +234,28 @@ describe('safe company rule', () => {
     s.companies.luxor.active = true;
     s.companies.luxor.size = 11;
     s.companies.luxor.safe = true;
-
     giveTile(s, 'p1', '3A');
-    const r = reduce(s, 'p1', { type: 'PLACE_TILE', tile: '3A' });
-    expect(r.error).toBeTruthy();
+    return s;
+  }
+
+  it('lets the placing player choose the survivor', () => {
+    let s = twoSafeBoard();
+    s = act(s, 'p1', { type: 'PLACE_TILE', tile: '3A' });
+    expect(s.phase).toBe('merging');
+    expect(s.pendingMerger?.awaitingResolve).toBe(true);
+    expect(s.pendingMerger?.candidates.sort()).toEqual(['luxor', 'tower']);
+  });
+
+  it('keeps the chosen safe company and absorbs the other', () => {
+    let s = twoSafeBoard();
+    s = act(s, 'p1', { type: 'PLACE_TILE', tile: '3A' });
+    // Choose the smaller-by-name tower as survivor even though sizes tie.
+    s = act(s, 'p1', { type: 'RESOLVE_MERGER', survivor: 'tower', order: ['luxor'] });
+    // No one holds luxor shares here, so disposal is empty → merger completes.
+    expect(s.phase).toBe('buying');
+    expect(s.companies.tower.active).toBe(true);
+    expect(s.companies.luxor.active).toBe(false);
+    expect(s.companies.tower.size).toBe(23); // 11 + 11 + bridge tile
   });
 });
 

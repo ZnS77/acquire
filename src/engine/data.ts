@@ -52,6 +52,16 @@ export function stockPrice(tier: PriceTier, size: number): number {
   return base + TIER_OFFSET[tier];
 }
 
+// Sizes at which the per-share price steps up to the next bracket.
+const PRICE_THRESHOLDS = [3, 4, 5, 6, 11, 21, 31, 41];
+
+/** Tiles a company must still gain before its share price rises; null at the cap. */
+export function tilesToNextPriceBracket(size: number): number | null {
+  if (size < 2) return 2 - size; // not founded yet → tiles until it could exist
+  for (const t of PRICE_THRESHOLDS) if (t > size) return t - size;
+  return null;
+}
+
 /** All 108 tile ids, "1A" … "12I". */
 export function allTiles(): TileId[] {
   const tiles: TileId[] = [];

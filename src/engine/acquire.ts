@@ -188,15 +188,30 @@ function drawTile(state: AcquireState, pid: PlayerId): void {
   playerById(state, pid)!.handCount = state.hands[pid].length;
 }
 
-function advanceTurn(state: AcquireState): void {
+/** End of turn: draw a replacement tile, then PAUSE so the player can see it. */
+function drawAndPause(state: AcquireState): void {
   const pid = currentPlayer(state).id;
+  const before = state.hands[pid].length;
   drawTile(state, pid);
+  const hand = state.hands[pid];
+  const tile = hand.length > before ? hand[hand.length - 1] : null;
+  state.pendingDraw = { player: pid, tile };
+  state.phase = 'confirm';
+  log(state, tile ? `${nameOf(state, pid)} 补抽了 1 块板。` : `牌库已空，无法补抽。`);
+}
+
+/** Player confirmed their drawn tile → resolve endgame or pass to next player. */
+function endTurn(state: AcquireState, pid: PlayerId): ReduceResult {
+  if (state.phase !== 'confirm') return err(state, '当前不是回合确认阶段。');
+  if (currentPlayer(state).id !== pid) return err(state, '还没轮到你。');
+  state.pendingDraw = undefined;
   if (isGameOver(state)) {
     finalizeGame(state);
-    return;
+    return { state };
   }
   state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
   state.phase = 'placing';
+  return { state };
 }
 
 function handlePlacement(state: AcquireState, pid: PlayerId, tile: TileId): ReduceResult {
@@ -314,6 +329,27 @@ function beginMerger(state: AcquireState, pid: PlayerId, tile: TileId): ReduceRe
   const sizes = involved.map((id) => ({ id, size: state.companies[id].size }));
   const maxSize = Math.max(...sizes.map((s) => s.size));
   const top = sizes.filter((s) => s.size === maxSize).map((s) => s.id);
+  const safeInvolved = involved.filter((id) => state.companies[id].safe);
+
+  // House rule: when 2+ SAFE companies meet, the placing player chooses which
+  // one survives (in official Acquire such a tile is simply unplayable).
+  // Otherwise the largest survives; an exact size tie also lets the placer pick.
+  let awaitingResolve: boolean;
+  let candidates: CompanyId[];
+  let survivor: CompanyId | undefined;
+  if (safeInvolved.length >= 2) {
+    awaitingResolve = true;
+    candidates = involved.slice();
+    survivor = undefined;
+  } else if (top.length > 1) {
+    awaitingResolve = true;
+    candidates = top;
+    survivor = undefined;
+  } else {
+    awaitingResolve = false;
+    candidates = [top[0]];
+    survivor = top[0];
+  }
 
   state.phase = 'merging';
   state.pendingMerger = {
@@ -321,18 +357,20 @@ function beginMerger(state: AcquireState, pid: PlayerId, tile: TileId): ReduceRe
     triggerer: pid,
     componentTiles: component,
     involved,
-    awaitingResolve: top.length > 1,
-    survivor: top.length === 1 ? top[0] : undefined,
+    awaitingResolve,
+    candidates,
+    survivor,
     defunctQueue: [],
     disposalOrder: [],
     disposalIndex: 0,
   };
 
-  if (top.length > 1) {
-    log(state, `${nameOf(state, pid)} 触发并购，规模相同需选择保留方。`);
+  if (awaitingResolve) {
+    const why = safeInvolved.length >= 2 ? '两家安全公司相遇' : '规模相同';
+    log(state, `${nameOf(state, pid)} 触发并购，${why}，由放置者选择保留方。`);
     return { state };
   }
-  finalizeMergerSurvivor(state, top[0], involved);
+  finalizeMergerSurvivor(state, survivor!, involved);
   return { state };
 }
 
@@ -345,11 +383,7 @@ function resolveMerger(
   const pm = state.pendingMerger;
   if (!pm || !pm.awaitingResolve) return err(state, '当前无需选择保留方。');
   if (pm.triggerer !== pid) return err(state, '只有触发者可选择保留方。');
-  if (!pm.involved.includes(survivor)) return err(state, '保留方必须是参与并购的公司。');
-  const maxSize = Math.max(...pm.involved.map((id) => state.companies[id].size));
-  if (state.companies[survivor].size !== maxSize) {
-    return err(state, '保留方必须是规模最大的公司之一。');
-  }
+  if (!pm.candidates.includes(survivor)) return err(state, '保留方必须是可选公司之一。');
   const defunct = pm.involved.filter((id) => id !== survivor);
   // `order` (optional) lets the triggerer set processing order of the defunct.
   const ordered =
@@ -547,7 +581,7 @@ function buyShares(
   if (total > 0) log(state, `${nameOf(state, pid)} 购买了 ${total} 股，花费 ${cost} 元。`);
   else log(state, `${nameOf(state, pid)} 跳过购买。`);
 
-  advanceTurn(state);
+  drawAndPause(state);
   return { state };
 }
 
@@ -612,6 +646,11 @@ function redact(state: AcquireState, viewerId: PlayerId): PlayerView {
     bagCount: state.bag.length,
     you: viewerId,
     yourHand: state.hands[viewerId] ?? [],
+    // A drawn tile is only revealed to the player who drew it (hidden from others).
+    yourLastDraw:
+      state.pendingDraw && state.pendingDraw.player === viewerId
+        ? state.pendingDraw.tile
+        : null,
     // `hands` (others), `bag` contents and `seed` are deliberately omitted.
   };
 }
@@ -642,9 +681,8 @@ function reduce(
       const hand = next.hands[playerId] ?? [];
       if (!hand.includes(action.tile)) return err(state, '你手上没有这块板。');
       if (cellAt(next, action.tile) !== null) return err(state, '该位置已被占用。');
-      if (wouldMergeSafes(next, action.tile)) {
-        return err(state, '该板会导致两家安全公司并购，不能打出。');
-      }
+      // House rule: tiles that connect two safe companies ARE playable here;
+      // beginMerger routes them to a placer-decides-survivor choice.
       // Remove tile from hand and place.
       next.hands[playerId] = hand.filter((t) => t !== action.tile);
       playerById(next, playerId)!.handCount = next.hands[playerId].length;
@@ -661,6 +699,8 @@ function reduce(
       if (currentPlayer(next).id !== playerId) return err(state, '还没轮到你。');
       return buyShares(next, playerId, action.buy);
     }
+    case 'END_TURN':
+      return endTurn(next, playerId);
     case 'DECLARE_END':
       return declareEnd(next, playerId);
     default:

@@ -3,7 +3,12 @@
 // (authoritative server over WebSocket) — proving the client only ever needs
 // the redacted view + an action channel.
 
-import { COMPANY_IDS, ROW_LETTERS, stockPrice } from '../engine/data';
+import {
+  COMPANY_IDS,
+  ROW_LETTERS,
+  stockPrice,
+  tilesToNextPriceBracket,
+} from '../engine/data';
 import type { CompanyId, PlayerAction, PlayerId, PlayerView } from '../engine/types';
 
 export type Dispatch = (action: PlayerAction) => void;
@@ -16,6 +21,7 @@ const PHASE_LABEL: Record<string, string> = {
   founding: '成立公司',
   merging: '并购处置',
   buying: '购买股票',
+  confirm: '确认手牌',
   ended: '游戏结束',
 };
 
@@ -24,6 +30,7 @@ export function activeActor(v: PlayerView): PlayerId | null {
   switch (v.phase) {
     case 'placing':
     case 'buying':
+    case 'confirm':
       return v.players[v.currentPlayerIndex].id;
     case 'founding':
       return v.pendingFounding?.founder ?? null;
@@ -106,13 +113,16 @@ function renderHand(v: PlayerView, me: PlayerId, myTurn: boolean, dispatch: Disp
   const hand = $('hand');
   hand.innerHTML = '';
   const canPlace = v.phase === 'placing' && myTurn;
+  const justDrawn = v.phase === 'confirm' && v.you === me ? v.yourLastDraw : null;
   const label = document.createElement('div');
   label.style.cssText = 'width:100%;color:var(--muted);font-size:12px';
-  label.textContent = `${nameOf(v, me)} 的手牌${canPlace ? '（点击打出）' : ''}`;
+  label.textContent =
+    `${nameOf(v, me)} 的手牌${canPlace ? '（点击打出）' : ''}` +
+    (justDrawn ? ` · 新抽到 ${justDrawn}（高亮）` : '');
   hand.appendChild(label);
   for (const tile of v.yourHand) {
     const btn = document.createElement('button');
-    btn.className = 'tile';
+    btn.className = 'tile' + (tile === justDrawn ? ' just-drawn' : '');
     btn.textContent = tile;
     btn.disabled = !canPlace;
     btn.onclick = () => dispatch({ type: 'PLACE_TILE', tile });
@@ -135,6 +145,8 @@ function renderActions(v: PlayerView, me: PlayerId, myTurn: boolean, dispatch: D
       return renderMerging(v, box, dispatch);
     case 'buying':
       return renderBuying(v, me, box, dispatch);
+    case 'confirm':
+      return renderConfirm(v, box, dispatch);
     case 'placing':
       box.innerHTML = '<h3>从上方手牌中点击一块板打出。</h3>';
       return;
@@ -161,15 +173,17 @@ function renderFounding(v: PlayerView, box: HTMLElement, dispatch: Dispatch): vo
 function renderMerging(v: PlayerView, box: HTMLElement, dispatch: Dispatch): void {
   const pm = v.pendingMerger!;
   if (pm.awaitingResolve) {
-    box.innerHTML = '<h3>规模相同，请触发者选择保留方</h3>';
+    const bothSafe = pm.candidates.filter((id) => v.companies[id].safe).length >= 2;
+    box.innerHTML = bothSafe
+      ? '<h3>两家安全公司相遇 — 放置者决定保留方（房规）</h3>'
+      : '<h3>规模相同，请触发者选择保留方</h3>';
     const row = document.createElement('div');
     row.className = 'row';
-    const maxSize = Math.max(...pm.involved.map((id) => v.companies[id].size));
-    for (const id of pm.involved) {
-      if (v.companies[id].size !== maxSize) continue;
+    for (const id of pm.candidates) {
+      const co = v.companies[id];
       const b = document.createElement('button');
       b.className = 'primary';
-      b.textContent = `保留 ${v.companies[id].name}`;
+      b.innerHTML = `<span class="swatch" style="background:var(--${id})"></span>保留 ${co.name}（${co.size}${co.safe ? ' 安全' : ''}）`;
       b.onclick = () =>
         dispatch({ type: 'RESOLVE_MERGER', survivor: id, order: pm.involved.filter((x) => x !== id) });
       row.appendChild(b);
@@ -267,20 +281,57 @@ function renderBuying(v: PlayerView, me: PlayerId, box: HTMLElement, dispatch: D
   box.appendChild(btnRow);
 }
 
+function renderConfirm(v: PlayerView, box: HTMLElement, dispatch: Dispatch): void {
+  const drawn = v.yourLastDraw;
+  box.innerHTML = drawn
+    ? `<h3>你的回合结束，补抽到一块新板：<b style="color:var(--accent)">${drawn}</b>（已在手牌中高亮）。确认后轮到下一位。</h3>`
+    : `<h3>牌库已空，没有可补抽的板。确认后继续。</h3>`;
+  const row = document.createElement('div');
+  row.className = 'row';
+  const ok = document.createElement('button');
+  ok.className = 'primary';
+  ok.textContent = '确认，结束回合 ▶';
+  ok.onclick = () => dispatch({ type: 'END_TURN' });
+  row.appendChild(ok);
+  box.appendChild(row);
+}
+
 function renderMarket(v: PlayerView): void {
   const el = $('market');
+  const shortName = (n: string) => n.replace('玩家 ', '玩');
   let rows = '';
   for (const id of COMPANY_IDS) {
     const co = v.companies[id];
-    const price = co.active ? stockPrice(co.tier, co.size) : '—';
     const safe = co.safe ? '<span class="safe-badge">安全</span>' : '';
-    rows += `<tr style="opacity:${co.active ? 1 : 0.45}">
+    if (!co.active) {
+      rows += `<tr style="opacity:.4">
+        <td><span class="swatch" style="background:var(--${id})"></span>${co.name}</td>
+        <td colspan="5" style="color:var(--muted)">未开业</td></tr>`;
+      continue;
+    }
+    const price = stockPrice(co.tier, co.size);
+    const toNext = tilesToNextPriceBracket(co.size);
+    const nextCell = toNext == null ? '<span class="safe-badge">顶档</span>' : `+${toNext}`;
+    // Who holds this company, e.g. "玩1×3 玩2×1".
+    const holders =
+      v.players
+        .filter((p) => p.shares[id] > 0)
+        .map((p) => `${shortName(p.name)}×${p.shares[id]}`)
+        .join(' ') || '<span style="color:var(--muted)">—</span>';
+    rows += `<tr>
       <td><span class="swatch" style="background:var(--${id})"></span>${co.name}${safe}</td>
-      <td>${co.active ? co.size : '-'}</td><td>${price}</td><td>${co.sharesLeft}</td></tr>`;
+      <td>${co.size}</td>
+      <td title="距下一档价位还差的地块数">${nextCell}</td>
+      <td>${price}</td>
+      <td title="大股东分红 / 二股东分红">${price * 10}<br><span style="color:var(--muted)">${price * 5}</span></td>
+      <td>${co.sharesLeft}</td></tr>
+      <tr class="holders-row"><td colspan="6">持股：${holders}</td></tr>`;
   }
-  el.innerHTML = `<h2>股票市场</h2>
-    <table><thead><tr><th>公司</th><th>规模</th><th>市价</th><th>余股</th></tr></thead>
-    <tbody>${rows}</tbody></table>`;
+  el.innerHTML = `<h2>股价状态</h2>
+    <table class="market"><thead><tr>
+      <th>公司</th><th>规模</th><th title="距下一档价位还差几块">距档</th>
+      <th>市价</th><th title="大股东 10× / 二股东 5×">分红</th><th>余股</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function renderPlayers(v: PlayerView, me: PlayerId): void {

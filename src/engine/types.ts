@@ -23,6 +23,7 @@ export type Phase =
   | 'founding'
   | 'merging'
   | 'buying'
+  | 'confirm' // drew a tile; current player confirms before passing
   | 'ended';
 
 /** A single board cell. */
@@ -53,7 +54,8 @@ export interface PendingMerger {
   triggerer: PlayerId; // player who placed the tile
   componentTiles: TileId[]; // all tiles that become survivor once merger completes
   involved: CompanyId[]; // every company drawn into the merger
-  awaitingResolve: boolean; // true → triggerer must pick survivor (size tie)
+  awaitingResolve: boolean; // true → triggerer must pick survivor
+  candidates: CompanyId[]; // valid survivor choices while awaitingResolve
   survivor?: CompanyId; // chosen / largest survivor
   defunctQueue: CompanyId[]; // companies still to be processed, in order
   currentDefunct?: CompanyId; // company whose shareholders are disposing now
@@ -82,6 +84,7 @@ export interface AcquireState {
   currentPlayerIndex: number;
   pendingMerger?: PendingMerger;
   pendingFounding?: PendingFounding;
+  pendingDraw?: { player: PlayerId; tile: TileId | null }; // tile just drawn
   log: string[];
   winnerIds?: PlayerId[];
 }
@@ -104,6 +107,7 @@ export interface PlayerView {
   bagCount: number;
   you: PlayerId;
   yourHand: TileId[];
+  yourLastDraw?: TileId | null; // the tile you just drew (only in 'confirm')
 }
 
 export type PlayerAction =
@@ -113,6 +117,7 @@ export type PlayerAction =
   | { type: 'RESOLVE_MERGER'; survivor: CompanyId; order: CompanyId[] }
   | { type: 'MERGER_DISPOSE'; keep: number; sell: number; trade: number }
   | { type: 'BUY_SHARES'; buy: Partial<Record<CompanyId, number>> }
+  | { type: 'END_TURN' } // confirm drawn tile, pass to next player
   | { type: 'DECLARE_END' };
 
 export interface ReduceResult {

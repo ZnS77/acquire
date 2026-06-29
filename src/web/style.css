@@ -57,7 +57,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 
 .layout { display: flex; gap: 16px; padding: 16px; align-items: flex-start; }
 .board-col { flex: 1; min-width: 0; }
-.side-col { width: 340px; display: flex; flex-direction: column; gap: 12px; }
+.side-col { width: 388px; display: flex; flex-direction: column; gap: 12px; }
 
 .status {
   background: var(--panel);
@@ -113,6 +113,12 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 }
 .tile:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-2px); }
 .tile:disabled { opacity: .45; cursor: not-allowed; }
+.tile.just-drawn {
+  border-color: #ffd76a;
+  box-shadow: 0 0 0 2px rgba(255, 215, 106, .5);
+  background: #3a3320;
+  opacity: 1;
+}
 
 .actions {
   margin-top: 14px;
@@ -142,6 +148,16 @@ th, td { text-align: left; padding: 5px 4px; border-bottom: 1px solid var(--line
 th { color: var(--muted); font-weight: 500; }
 .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; margin-right: 6px; vertical-align: middle; }
 .safe-badge { font-size: 10px; background: var(--imperial); color: #04231f; padding: 1px 5px; border-radius: 8px; margin-left: 4px; }
+table.market th, table.market td { padding: 4px 4px; font-size: 12px; }
+table.market td { vertical-align: top; }
+.holders-row td {
+  padding-top: 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 11px;
+}
+table.market tr:not(.holders-row) td { border-bottom: none; }
 .you-row { background: rgba(77,163,255,.12); }
 .actor-row td:first-child::before { content: "▶ "; color: var(--accent); }
 
