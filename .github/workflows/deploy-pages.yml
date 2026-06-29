@@ -33,6 +33,8 @@ jobs:
       - run: npm ci
       - run: npm run build:pages
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true # auto-enable Pages (Actions source) on first run
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
