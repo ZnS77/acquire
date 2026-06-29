@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>并购风云 · 联机版 MVP（本地热座预览）</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>并购风云 <span class="tag">MVP 预览</span></h1>
+      <div class="setup">
+        <label>玩家数
+          <select id="numPlayers">
+            <option value="2">2</option>
+            <option value="3" selected>3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+          </select>
+        </label>
+        <button id="newGame">新游戏</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="board-col">
+        <div id="status" class="status"></div>
+        <div id="board" class="board"></div>
+        <div id="hand" class="hand"></div>
+        <div id="actions" class="actions"></div>
+      </section>
+
+      <aside class="side-col">
+        <div id="market" class="panel"></div>
+        <div id="players" class="panel"></div>
+        <div id="log" class="panel log"></div>
+      </aside>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
