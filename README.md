@@ -22,7 +22,14 @@ src/web/           前端渲染层（同一引擎/视图，两种宿主）
   app.ts           共享渲染器：输入 PlayerView，输出 PlayerAction
   main.ts          热座驱动（单浏览器本地跑引擎，验证规则/界面）
   client.ts        联机玩家端（连 ws，只收脱敏视图、只发动作）
+cloud/             微信云开发（M1，本地部署）
+  functions/dispatch/  权威云函数：create/join/start/action + 脱敏写回
+  database-rules/      rooms / room_private / room_secret 安全规则
+miniprogram/       微信小程序原生前端（lobby + game，watch DB、调云函数）
 ```
+
+> 微信小程序 + 云开发的完整部署步骤见 **[`cloud/README.md`](cloud/README.md)**。
+> `npm run build:cloud` 把 `src/engine` 编译进云函数，引擎一行不改地复用。
 
 ### 两种运行形态
 
@@ -88,7 +95,8 @@ npm run dev       # 终端 B：启动前端
 - [x] **M0** 规则引擎 + 测试（本仓库）
 - [x] 浏览器 H5 热座渲染（额外，便于在云端会话验证 UI）
 - [x] 自建 ws 权威服务端 + 每人一页联机（平台中立，验证真联机拓扑）
-- [ ] **M1** 把 `server.ts` 的逻辑搬进微信云函数 `dispatch` + CloudBase 三文档（本地）
+- [x] **M1 脚手架** 微信云函数 `dispatch` + CloudBase 三文档 + 小程序前端
+  （见 [`cloud/README.md`](cloud/README.md)，本地微信开发者工具部署）
 - [ ] **M2** 小程序棋盘/市场/并购弹窗（本地）
 - [ ] **M3** 断线重连 + 持久化 + 房间生命周期
 - [ ] **M4** 接第二个游戏验证通用层复用

@@ -1,0 +1,157 @@
+<!-- 大厅（未开始） -->
+<view class="page" wx:if="{{inLobby}}">
+  <view class="title">房间号 <text class="room">{{roomId}}</text></view>
+  <view class="card">
+    <view class="sub">已加入玩家（{{lobbyPlayers.length}}）</view>
+    <view class="plist">
+      <view class="pchip" wx:for="{{lobbyPlayers}}" wx:key="id">
+        {{item.name}}<text wx:if="{{item.id === room.host}}"> 👑</text>
+      </view>
+    </view>
+    <button wx:if="{{isHost}}" class="btn primary" bindtap="startGame">开始游戏</button>
+    <view wx:else class="tip">等待房主开始…</view>
+  </view>
+  <view class="tip">把房间号 {{roomId}} 发给好友，让他们在大厅输入加入。</view>
+</view>
+
+<!-- 对局 -->
+<view class="game" wx:else>
+  <!-- 状态条 -->
+  <view class="status">
+    你是 <text class="hl">{{view.you === me ? '本人' : me}}</text> ·
+    <text class="hl">{{phaseLabel}}</text> · 当前：<text class="hl">{{actorName}}</text>
+    <text wx:if="{{isMyTurn}}" class="turn"> · 轮到你了</text>
+    <text wx:if="{{winner}}" class="win"> 🏆 获胜：{{winner}}</text>
+  </view>
+
+  <!-- 棋盘 -->
+  <view class="board">
+    <view
+      class="cell"
+      wx:for="{{cells}}"
+      wx:key="tile"
+      data-tile="{{item.tile}}"
+      bindtap="placeTile"
+      style="background:{{item.color}};color:{{item.occupied ? '#10151f' : '#93a4bd'}}">
+      {{item.label}}
+    </view>
+  </view>
+
+  <!-- 手牌 -->
+  <view class="hand">
+    <view class="hlabel">手牌{{view.phase === 'placing' && isMyTurn ? '（点击落子）' : ''}}</view>
+    <view class="tiles">
+      <view
+        class="tile {{item.justDrawn ? 'drawn' : ''}}"
+        wx:for="{{hand}}"
+        wx:key="tile"
+        data-tile="{{item.tile}}"
+        bindtap="placeTile">{{item.tile}}</view>
+    </view>
+  </view>
+
+  <!-- 操作区 -->
+  <view class="actions" wx:if="{{isMyTurn}}">
+    <!-- 落子提示 -->
+    <view wx:if="{{view.phase === 'placing'}}" class="hint">从上方手牌中点击一块板打出。</view>
+
+    <!-- 成立公司 -->
+    <block wx:if="{{view.phase === 'founding'}}">
+      <view class="hint">选择新公司名称（免费得 1 股）</view>
+      <view class="btnrow">
+        <button class="btn primary sm" wx:for="{{foundingChoices}}" wx:key="id"
+          data-id="{{item.id}}" bindtap="chooseCompany"
+          style="background:{{item.color}}">{{item.name}}</button>
+      </view>
+    </block>
+
+    <!-- 并购：选保留方 -->
+    <block wx:if="{{view.phase === 'merging' && view.pendingMerger.awaitingResolve}}">
+      <view class="hint">选择保留方（两家安全公司相遇时由你决定）</view>
+      <view class="btnrow">
+        <button class="btn primary sm" wx:for="{{mergerCandidates}}" wx:key="id"
+          data-id="{{item.id}}" bindtap="resolveMerger" style="background:{{item.color}}">
+          保留 {{item.name}}（{{item.size}}{{item.safe ? ' 安全' : ''}}）
+        </button>
+      </view>
+    </block>
+
+    <!-- 并购：处置股票 -->
+    <block wx:if="{{view.phase === 'merging' && disposal}}">
+      <view class="hint">处置 {{disposal.defunctName}}（共 {{disposal.held}} 股，市价 {{disposal.price}}）→ 存续 {{disposal.survivorName}}</view>
+      <view class="inrow">
+        <text>留</text><input class="num" type="number" value="{{keep}}" bindinput="onKeep" />
+        <text>卖</text><input class="num" type="number" value="{{sell}}" bindinput="onSell" />
+        <text>换(2:1)</text><input class="num" type="number" value="{{trade}}" bindinput="onTrade" />
+      </view>
+      <view class="hint sm">三者合计须等于 {{disposal.held}}；换股需为偶数。</view>
+      <button class="btn primary" bindtap="submitDispose">确认处置</button>
+    </block>
+
+    <!-- 购买 -->
+    <block wx:if="{{view.phase === 'buying'}}">
+      <view class="hint">购买股票（合计 ≤ 3 股）</view>
+      <view class="inrow" wx:for="{{buyList}}" wx:key="id">
+        <text class="cdot" style="background:{{item.color}}"></text>
+        <text class="cname">{{item.name}}</text>
+        <text class="muted">市价 {{item.price}} · 余 {{item.sharesLeft}}</text>
+        <input class="num" type="number" data-id="{{item.id}}" value="0" bindinput="onBuyInput" />
+      </view>
+      <view class="btnrow">
+        <button class="btn primary" bindtap="submitBuy">确认购买 / 跳过</button>
+        <button wx:if="{{canEnd}}" class="btn" bindtap="declareEnd">宣布游戏结束</button>
+      </view>
+    </block>
+
+    <!-- 抽牌确认 -->
+    <block wx:if="{{view.phase === 'confirm'}}">
+      <view class="hint">本回合结束，补抽到：<text class="hl">{{view.yourLastDraw || '（牌库已空）'}}</text>（手牌中高亮）</view>
+      <button class="btn primary" bindtap="confirmDraw">确认，结束回合 ▶</button>
+    </block>
+
+    <!-- 结束 -->
+    <block wx:if="{{view.phase === 'ended'}}">
+      <button class="btn" bindtap="backToLobby">返回大厅</button>
+    </block>
+  </view>
+  <view class="actions" wx:else>
+    <view class="hint">当前由 {{actorName}} 操作，请等待…</view>
+  </view>
+
+  <!-- 股价状态 -->
+  <view class="panel">
+    <view class="ptitle">股价状态</view>
+    <view class="srow shead">
+      <text class="c-name">公司</text><text class="c-n">规模</text><text class="c-n">距档</text>
+      <text class="c-n">市价</text><text class="c-n">分红(大/二)</text><text class="c-n">余股</text>
+    </view>
+    <block wx:for="{{companies}}" wx:key="id">
+      <view class="srow" style="opacity:{{item.active ? 1 : 0.4}}">
+        <text class="c-name"><text class="cdot" style="background:{{item.color}}"></text>{{item.name}}<text wx:if="{{item.safe}}" class="safe">安全</text></text>
+        <text class="c-n">{{item.active ? item.size : '-'}}</text>
+        <text class="c-n">{{item.active ? item.toNext : '-'}}</text>
+        <text class="c-n">{{item.active ? item.price : '-'}}</text>
+        <text class="c-n">{{item.active ? (item.majority + '/' + item.minority) : '-'}}</text>
+        <text class="c-n">{{item.sharesLeft}}</text>
+      </view>
+      <view wx:if="{{item.active}}" class="holders">持股：{{item.holders}}</view>
+    </block>
+  </view>
+
+  <!-- 玩家 -->
+  <view class="panel">
+    <view class="ptitle">玩家</view>
+    <view class="srow {{item.isMe ? 'me' : ''}}" wx:for="{{playersRow}}" wx:key="id">
+      <text class="c-name">{{item.isActor ? '▶ ' : ''}}{{item.name}}{{item.isMe ? '（你）' : ''}}</text>
+      <text class="c-n">{{item.cash}}</text>
+      <text class="c-n">{{item.handCount}}</text>
+      <text class="c-h">{{item.holdings}}</text>
+    </view>
+  </view>
+
+  <!-- 日志 -->
+  <view class="panel">
+    <view class="ptitle">日志</view>
+    <view class="log" wx:for="{{logLines}}" wx:key="*this">{{item}}</view>
+  </view>
+</view>

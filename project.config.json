@@ -1,0 +1,17 @@
+{
+  "miniprogramRoot": "miniprogram/",
+  "cloudfunctionRoot": "cloud/functions/",
+  "projectname": "acquire-mini",
+  "appid": "TOUCH_YOUR_APPID_HERE",
+  "compileType": "miniprogram",
+  "libVersion": "latest",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": false,
+    "bigPackageSizeSupport": true
+  },
+  "condition": {}
+}

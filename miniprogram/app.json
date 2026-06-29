@@ -1,0 +1,11 @@
+{
+  "pages": ["pages/lobby/lobby", "pages/game/game"],
+  "window": {
+    "navigationBarTitleText": "并购风云",
+    "navigationBarBackgroundColor": "#182234",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#0f1622"
+  },
+  "sitemapLocation": "sitemap.json",
+  "style": "v2"
+}

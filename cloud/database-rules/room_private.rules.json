@@ -1,0 +1,5 @@
+{
+  "//": "集合 room_private：每位玩家的脱敏视图（含本人手牌）。仅本人 openid 可读；只有云函数可写。",
+  "read": "doc.openid == auth.openid",
+  "write": false
+}

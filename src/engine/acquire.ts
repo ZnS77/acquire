@@ -35,7 +35,9 @@ import type {
 // ---------- small helpers ----------
 
 function clone(state: AcquireState): AcquireState {
-  return structuredClone(state);
+  // JSON clone (state is plain JSON data). Portable across Node runtimes,
+  // including the older Node the WeChat cloud function may run on.
+  return JSON.parse(JSON.stringify(state)) as AcquireState;
 }
 
 function emptyShares(): Record<CompanyId, number> {

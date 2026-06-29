@@ -1,0 +1,15 @@
+<view class="page">
+  <view class="title">并购风云 <text class="tag">联机</text></view>
+
+  <view class="card">
+    <input class="input" placeholder="你的昵称（可选）" value="{{name}}" bindinput="onName" />
+    <button class="btn primary" bindtap="create" disabled="{{busy}}">创建房间</button>
+  </view>
+
+  <view class="card">
+    <input class="input" placeholder="输入房间号加入" type="number" value="{{joinId}}" bindinput="onJoinId" />
+    <button class="btn" bindtap="join" disabled="{{busy}}">加入房间</button>
+  </view>
+
+  <view class="tip">{{tip}}</view>
+</view>
