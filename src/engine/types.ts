@@ -86,6 +86,26 @@ export interface AcquireState {
   winnerIds?: PlayerId[];
 }
 
+/**
+ * The redacted, per-player view that is safe to send over the wire.
+ * Contains the full public state plus only the viewer's own hand —
+ * never other players' hands, the bag contents, or the seed.
+ */
+export interface PlayerView {
+  phase: Phase;
+  board: Cell[][];
+  companies: Record<CompanyId, Company>;
+  players: PlayerPublic[];
+  currentPlayerIndex: number;
+  pendingMerger?: PendingMerger;
+  pendingFounding?: PendingFounding;
+  log: string[];
+  winnerIds?: PlayerId[];
+  bagCount: number;
+  you: PlayerId;
+  yourHand: TileId[];
+}
+
 export type PlayerAction =
   | { type: 'START' }
   | { type: 'PLACE_TILE'; tile: TileId }

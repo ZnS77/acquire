@@ -7,6 +7,12 @@ export default defineConfig({
   build: {
     outDir: '../../dist',
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: 'src/web/index.html', // hot-seat
+        client: 'src/web/client.html', // networked per-player page
+      },
+    },
   },
   server: {
     host: true,

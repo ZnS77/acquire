@@ -27,6 +27,7 @@ import type {
   PlayerAction,
   PlayerId,
   PlayerPublic,
+  PlayerView,
   ReduceResult,
   TileId,
 } from './types';
@@ -597,15 +598,21 @@ function finalizeGame(state: AcquireState): void {
 // ---------- redaction ----------
 
 /** Per-player view: own hand revealed, others' hands and the bag hidden. */
-function redact(state: AcquireState, viewerId: PlayerId): unknown {
-  const { hands, bag, seed, ...rest } = state;
+function redact(state: AcquireState, viewerId: PlayerId): PlayerView {
   return {
-    ...rest,
-    bagCount: bag.length,
+    phase: state.phase,
+    board: state.board,
+    companies: state.companies,
+    players: state.players,
+    currentPlayerIndex: state.currentPlayerIndex,
+    pendingMerger: state.pendingMerger,
+    pendingFounding: state.pendingFounding,
+    log: state.log,
+    winnerIds: state.winnerIds,
+    bagCount: state.bag.length,
     you: viewerId,
-    yourHand: hands[viewerId] ?? [],
-    // `seed` deliberately omitted from the redacted view.
-    _seedHidden: typeof seed === 'string',
+    yourHand: state.hands[viewerId] ?? [],
+    // `hands` (others), `bag` contents and `seed` are deliberately omitted.
   };
 }
 
